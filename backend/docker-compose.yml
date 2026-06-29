@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chat-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-chatapp}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      # Host 5433 -> container 5432 (5432 is taken by the ERP's Postgres).
+      - "${DB_HOST_PORT:-5433}:5432"
+    volumes:
+      - chat_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-chatapp}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: chat-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Inside the compose network, reach Postgres by its service name.
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-chatapp}
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      SERVER_PORT: ${SERVER_PORT:-5001}
+      SOCKETIO_HOST: 0.0.0.0
+      SOCKETIO_PORT: ${SOCKETIO_PORT:-5002}
+      UPLOAD_DIR: /app/uploads
+    ports:
+      - "${SERVER_PORT:-5001}:5001"
+      - "${SOCKETIO_PORT:-5002}:5002"
+    volumes:
+      - chat_uploads:/app/uploads
+
+volumes:
+  chat_pgdata:
+  chat_uploads:
